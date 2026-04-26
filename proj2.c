@@ -4,7 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 
-
+/*
 struct cart {
 
     int count;
@@ -17,9 +17,13 @@ struct visitors {
     int count;
 
 } N;
+*/
 
-int main(int argv, char **argc){
 
+
+int main(){
 
     return 0;
 }
+
+
