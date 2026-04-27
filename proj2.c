@@ -2,28 +2,91 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <string.h>
-#include <pthread.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
-/*
-struct cart {
+typedef struct {
+    int trolley, visitors, capacity;
+    // time values in microseconds
+    int trolley_travel_time;
+    int max_queue_time; // for visitor untill they reach queue
+    int min_cart_distance;
 
-    int count;
-    int capacity;
+}   args_inputs;
 
-} V;
+int values_set_up(args_inputs *values, char **argv);
 
-struct visitors {
-
-    int count;
-
-} N;
-*/
-
+int check_values(args_inputs *values);
 
 
-int main(){
+int main(int argc, char **argv) {
+    
+    if(argc != 7) {
+
+        fprintf(stderr, "Incorect number of arguments \n");
+        return 0;
+    }
+
+    args_inputs values;
+    
+    if(values_set_up(&values, argv) == 1){
+        return 1;
+    }
 
     return 0;
 }
+
+int values_set_up(args_inputs *values, char **argv) {
+
+    values->trolley = atoi(argv[1]);
+    values->visitors = atoi(argv[2]);
+    values->capacity = atoi(argv[3]);
+    values->trolley_travel_time = atoi(argv[4]);
+    values->max_queue_time = atoi(argv[5]);
+    values->min_cart_distance = atoi(argv[6]);
+
+    if(check_values(values) == 1){
+        return 1;
+    }
+
+    return 0;
+}
+
+int check_values(args_inputs *values){
+
+    if(values->trolley >= 40 || values->trolley <= 0) {
+        fprintf(stderr, "Number of trolley are out of range \n");
+        return 1;
+    }
+    
+    if(values->visitors >= 10000 || values->visitors <= 0) {
+        fprintf(stderr, "Number of visitors are out of range \n");
+        return 1;
+    }
+
+    if(values->capacity > 40 || values->capacity < 0) {
+        fprintf(stderr, "Capacity out of range \n");
+        return 1;
+    }
+
+    if(values->trolley_travel_time >= 1000 || values->trolley_travel_time <= 0) {
+        fprintf(stderr, "Trolley travel time is out of the range \n");
+        return 1;
+    }
+
+    if(values->max_queue_time >= 1000 || values->max_queue_time <= 0) {
+        fprintf(stderr, "Queue time out of range \n");
+        return 1;
+    }
+
+    if(values->min_cart_distance >= 1000 || values->min_cart_distance <= 0) {
+        fprintf(stderr, "Cart distance out of range \n");
+        return 1;
+    }   
+
+    return 0;
+}
+
+
 
 
