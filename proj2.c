@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     if(argc != 7) {
 
         fprintf(stderr, "Incorect number of arguments \n");
-        return 0;
+        return 1;
     }
 
     args_inputs values;
@@ -54,39 +54,36 @@ int values_set_up(args_inputs *values, char **argv) {
 
 int check_values(args_inputs *values){
 
-    if(values->trolley >= 40 || values->trolley <= 0) {
+    if(values->trolley <= 0 || values->trolley >= 10) {
         fprintf(stderr, "Number of trolley are out of range \n");
         return 1;
     }
     
-    if(values->visitors >= 10000 || values->visitors <= 0) {
+    if(values->visitors <= 0 || values->visitors >= 10000) {
         fprintf(stderr, "Number of visitors are out of range \n");
         return 1;
     }
 
-    if(values->capacity > 40 || values->capacity < 0) {
+    if(values->capacity < 4 || values->capacity > 40) {
         fprintf(stderr, "Capacity out of range \n");
         return 1;
     }
 
-    if(values->trolley_travel_time >= 1000 || values->trolley_travel_time <= 0) {
+    if(values->trolley_travel_time < 0 || values->trolley_travel_time >= 1000) {
         fprintf(stderr, "Trolley travel time is out of the range \n");
         return 1;
     }
 
-    if(values->max_queue_time >= 1000 || values->max_queue_time <= 0) {
+    if(values->max_queue_time <= 0 || values->max_queue_time >= 1000) {
         fprintf(stderr, "Queue time out of range \n");
         return 1;
     }
 
-    if(values->min_cart_distance >= 1000 || values->min_cart_distance <= 0) {
+    if(values->min_cart_distance <= 0 || values->min_cart_distance >= 1000) {
         fprintf(stderr, "Cart distance out of range \n");
         return 1;
     }   
 
     return 0;
 }
-
-
-
 
