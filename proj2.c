@@ -27,7 +27,7 @@ typedef struct {
     sem_t visitors_sem; // semaphor for people in the trolley
     sem_t writing_sem; // semaphor for writing into the file 
 
-} shared_data;
+} logical_system;
 
 // assigns arguments to variables
 int values_set_up(args_inputs *values, char **argv);
@@ -35,9 +35,14 @@ int values_set_up(args_inputs *values, char **argv);
 // control if the arguments meet the conditions
 int check_values(args_inputs *values);
 
-int init_memory (shared_data data);
+// memory allocation
+logical_system *init_memory ();
 
-void clean_memory(shared_data data);
+logical_system *system_set_up();
+
+void clean_memory();
+
+
 
 int main(int argc, char **argv) {
     
@@ -53,6 +58,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    logical_system *shared_data = system_set_up();
+    if(shared_data == NULL){
+        return 1;
+    }
+
+
+
+    clean_memory(shared_data);
+    
     return 0;
 }
 
@@ -89,17 +103,17 @@ int check_values(args_inputs *values) {
         return 1;
     }
 
-    if(values->trolley_travel_time < 0 || values->trolley_travel_time >= 1000) {
+    if(values->trolley_travel_time < 0 || values->trolley_travel_time > 1000) {
         fprintf(stderr, "Trolley travel time is out of the range \n");
         return 1;
     }
 
-    if(values->max_queue_time <= 0 || values->max_queue_time >= 1000) {
+    if(values->max_queue_time < 0 || values->max_queue_time > 1000) {
         fprintf(stderr, "Queue time out of range \n");
         return 1;
     }
 
-    if(values->min_cart_distance <= 0 || values->min_cart_distance >= 1000) {
+    if(values->min_cart_distance <= 0 || values->min_cart_distance > 1000) {
         fprintf(stderr, "Cart distance out of range \n");
         return 1;
     }   
@@ -107,13 +121,41 @@ int check_values(args_inputs *values) {
     return 0;
 }
 
-int init_memory (shared_data data) {
+logical_system *init_memory() {
+    logical_system *shared_data = mmap(NULL, sizeof(logical_system), PROT_READ | PROT_WRITE, 
+                                                                  MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
-
-
+    if(shared_data == MAP_FAILED) {
+        fprintf(stderr, "mmap failed");
+        return NULL;
+    }
+    return shared_data;
 }
 
-void clean_memory(shared_data data) {
+logical_system *system_set_up(){
 
+    logical_system *shared_data = init_memory();
+    if(shared_data == NULL){
+        return;
+    }
 
+    sem_init(&shared_data->queue_sem, 1, 0);
+    sem_init(&shared_data->visitors_sem, 1, 0);
+    sem_init(&shared_data->writing_sem, 1, 1);
+
+    shared_data->action_counter = 1;
+    shared_data->queue_counter = 0;
+    shared_data->capacity_counter = 0;
+    shared_data->visitors_counter = 0;
+
+    return shared_data
+}
+
+void clean_memory(logical_system *shared_data) {
+    
+    sem_destroy(&shared_data->queue_sem);
+    sem_destroy(&shared_data->visitors_sem);
+    sem_destroy(&shared_data->writing_sem);
+
+    munmap(shared_data, sizeof(logical_system));
 }
