@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <semaphore.h>
-#include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+
 
 typedef struct {
     int trolley, visitors, capacity;
@@ -14,10 +15,29 @@ typedef struct {
 
 }   args_inputs;
 
+typedef struct {
+    // counters
+    int action_counter; 
+    int queue_counter; // counter how many people are in the line
+    int capacity_counter; // counter the capacity of each trolley
+    int visitors_counter; // counter for how many people will be standing in the line
+
+    // semaphors
+    sem_t queue_sem; // semaphor for people in queue
+    sem_t visitors_sem; // semaphor for people in the trolley
+    sem_t writing_sem; // semaphor for writing into the file 
+
+} shared_data;
+
+// assigns arguments to variables
 int values_set_up(args_inputs *values, char **argv);
 
+// control if the arguments meet the conditions
 int check_values(args_inputs *values);
 
+int init_memory (shared_data data);
+
+void clean_memory(shared_data data);
 
 int main(int argc, char **argv) {
     
@@ -52,7 +72,7 @@ int values_set_up(args_inputs *values, char **argv) {
     return 0;
 }
 
-int check_values(args_inputs *values){
+int check_values(args_inputs *values) {
 
     if(values->trolley <= 0 || values->trolley >= 10) {
         fprintf(stderr, "Number of trolley are out of range \n");
@@ -87,3 +107,13 @@ int check_values(args_inputs *values){
     return 0;
 }
 
+int init_memory (shared_data data) {
+
+
+
+}
+
+void clean_memory(shared_data data) {
+
+
+}
