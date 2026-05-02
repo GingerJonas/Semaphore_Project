@@ -1,61 +1,63 @@
 1: D: started
-2: D: next cart
-3: V 1: started
-4: V 1: boarding started
-5: N 1: started
-6: V 2: started
-7: N 6: started
-8: N 3: started
-9: N 9: started
-10: N 5: started
-11: N 1: queue
-12: N 1: boarding
+2: V 2: started
+3: D: next cart
+4: V 1: started
+5: V 3: started
+6: N 1: started
+7: N 2: started
+8: N 8: started
+9: N 3: started
+10: N 4: started
+11: N 5: started
+12: N 6: started
 13: N 7: started
-14: N 8: started
-15: N 6: queue
-16: N 6: boarding
-17: N 3: queue
-18: N 3: boarding
-19: N 9: queue
-20: N 9: boarding
-21: N 2: started
-22: N 7: queue
-23: N 8: queue
-24: N 4: started
-25: N 10: started
-26: N 5: queue
-27: V 1: boarding complete
-28: N 2: queue
-29: N 4: queue
-30: N 10: queue
-31: D: next cart
-32: V 2: boarding started
-33: N 7: boarding
-34: N 8: boarding
-35: N 5: boarding
-36: V 1: leaving started
-37: N 2: boarding
-38: N 1: leaving
-39: N 6: leaving
-40: N 9: leaving
+14: N 1: queue
+15: V 2: boarding started
+16: N 2: queue
+17: N 9: started
+18: N 10: started
+19: N 8: queue
+20: N 3: queue
+21: N 4: queue
+22: N 5: queue
+23: N 6: queue
+24: N 7: queue
+25: N 1: boarding
+26: N 9: queue
+27: N 10: queue
+28: N 2: boarding
+29: N 8: boarding
+30: N 3: boarding
+31: V 2: boarding complete
+32: D: next cart
+33: V 2: leaving started
+34: V 1: boarding started
+35: N 1: leaving
+36: N 4: boarding
+37: N 2: leaving
+38: N 5: boarding
+39: N 8: leaving
+40: N 6: boarding
 41: N 3: leaving
-42: V 2: boarding complete
-43: V 1: leaving complete
-44: D: next cart
-45: V 1: boarding started
-46: N 4: boarding
-47: N 10: boarding
-48: V 1: boarding complete
-49: V 2: leaving started
-50: N 7: leaving
-51: N 8: leaving
-52: N 5: leaving
-53: N 2: leaving
-54: V 2: leaving complete
-55: D: closing
-56: V 1: leaving started
+42: N 7: boarding
+43: V 2: leaving complete
+44: V 1: boarding complete
+45: D: next cart
+46: V 3: boarding started
+47: V 1: leaving started
+48: N 9: boarding
+49: N 4: leaving
+50: N 10: boarding
+51: N 5: leaving
+52: V 3: boarding complete
+53: N 6: leaving
+54: N 7: leaving
+55: V 1: leaving complete
+56: D: closing
 57: V 2: closed
-58: N 4: leaving
-59: N 10: leaving
-60: V 1: leaving complete
-61: V 1: closed
+58: V 1: closed
+59: V 3: leaving started
+60: N 9: leaving
+61: N 10: leaving
+62: V 3: leaving complete
+63: V 3: closed

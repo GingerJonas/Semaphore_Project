@@ -10,7 +10,7 @@ typedef struct {
     int cart, visitors, capacity;
     // time values in microseconds
     int cart_travel_time;
-    int queue_arrival; // for visitor untill they reach queue
+    int queue_arrival; 
     int min_cart_distance;
 
 }   args_inputs;
@@ -195,7 +195,7 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
     sem_post(&shared_data->writing_sem); // end writing
     
     // doing loop untill no visitors are in the park
-    while(shared_data->queue_counter != values->visitors) {
+    while(shared_data->queue_counter < values->visitors) {
         
         // doing another action for calling the cart
         sem_wait(&shared_data->writing_sem);
@@ -247,7 +247,7 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
         sem_wait(&shared_data->add_visitor);
 
         int remaining_visitors = values->visitors - shared_data->queue_counter; // visitors in park right now
-        int cart_max_visitors = values->capacity; // changing value localy 
+        int cart_max_visitors = values->capacity; // changing value locally 
 
         
         // for less people then there is capacity
@@ -301,9 +301,6 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
         // unboard all visitors in the cart
         for(int i = 0; i < cart_max_visitors; i++) {
             sem_post(&shared_data->visitors_sem);
-        }
-
-        for(int i = 0; i < cart_max_visitors; i++) {
             sem_wait(&shared_data->visitors_cart_left);
         }
 
