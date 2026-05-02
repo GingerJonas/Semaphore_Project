@@ -6,13 +6,11 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-// ---NEED TO ADD NEW SEMAPOHER FOR THE CART LEAVING--- \\ 
-
 typedef struct {
     int cart, visitors, capacity;
     // time values in microseconds
     int cart_travel_time;
-    int max_queue_time; // for visitor untill they reach queue
+    int queue_arrival; // for visitor untill they reach queue
     int min_cart_distance;
 
 }   args_inputs;
@@ -32,6 +30,7 @@ typedef struct {
     sem_t cart_left; // semaphor when cart is leaving
     sem_t filled_cart; // semaphor for waiting for visitors to sit
     sem_t visitors_cart_left; // semaphor for visitors leaving the cart
+    sem_t add_visitor; // semaphor to counter only one visitor at time 
 
 } logical_system;
 
@@ -53,7 +52,7 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
 void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj, int visitor_id);
 
-void park_system(args_inputs *values, logical_system *shared_data);
+void park_system(args_inputs *values, logical_system *shared_data, FILE *proj);
 
 void clean_memory(logical_system *shared_data);
 
@@ -85,7 +84,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // clean memory
     clean_memory(shared_data);
     
     return 0;
@@ -97,7 +95,7 @@ int values_set_up(args_inputs *values, char **argv) {
     values->visitors = atoi(argv[2]);
     values->capacity = atoi(argv[3]);
     values->cart_travel_time = atoi(argv[4]);
-    values->max_queue_time = atoi(argv[5]);
+    values->queue_arrival = atoi(argv[5]);
     values->min_cart_distance = atoi(argv[6]);
 
     if(check_values(values) == 1){
@@ -129,7 +127,7 @@ int check_values(args_inputs *values) {
         return 1;
     }
 
-    if(values->max_queue_time < 0 || values->max_queue_time > 1000) {
+    if(values->queue_arrival < 0 || values->queue_arrival > 1000) {
         fprintf(stderr, "Queue time out of range \n");
         return 1;
     }
@@ -163,12 +161,14 @@ logical_system *system_set_up(){
     // semaphor set up
     sem_init(&shared_data->queue_sem, 1, 0);
     sem_init(&shared_data->visitors_sem, 1, 0);
-    sem_init(&shared_data->writing_sem, 1, 1);
     sem_init(&shared_data->dispatch_cart, 1, 0);
     sem_init(&shared_data->cart_left, 1, 0);
     sem_init(&shared_data->filled_cart, 1, 0);
     sem_init(&shared_data->visitors_cart_left, 1, 0);
 
+    // mutex semaphor set up
+    sem_init(&shared_data->writing_sem, 1, 1);
+    sem_init(&shared_data->add_visitor, 1, 1);
 
     // variables set up
     shared_data->action_counter = 1;
@@ -252,8 +252,16 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
             cart_max_visitors = remaining_visitors;
         }
 
+        sem_wait(&shared_data->writing_sem);
+
+            fprintf(proj, "%d: V %d: boarding started\n", shared_data->action_counter, cart_id);
+            shared_data->action_counter++;
+        
+        sem_post(&shared_data->writing_sem);
+
+
         // wait untill the cart is filled 
-        for(int i = 0; i < values->capacity; i++){
+        for(int i = 0; i < cart_max_visitors; i++) {
             sem_post(&shared_data->queue_sem);
             sem_wait(&shared_data->filled_cart);
         }
@@ -263,7 +271,7 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
         sem_wait(&shared_data->writing_sem);
 
-        fprintf(proj, "%d: V %d: track\n", shared_data->action_counter, cart_id);
+        fprintf(proj, "%d: V %d: boarding complete\n", shared_data->action_counter, cart_id);
         shared_data->action_counter++;
         
         sem_post(&shared_data->writing_sem);
@@ -273,7 +281,7 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
         sem_wait(&shared_data->writing_sem);
 
-        fprintf(proj, "%d: V %d: unboard\n", shared_data->action_counter, cart_id);
+        fprintf(proj, "%d: V %d: leaving started\n", shared_data->action_counter, cart_id);
         shared_data->action_counter++;
         
         sem_post(&shared_data->writing_sem);
@@ -283,11 +291,26 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
             sem_post(&shared_data->visitors_sem);
         }
 
-        for(int i = 0; i < cart_max_visitors; i++){
+        for(int i = 0; i < cart_max_visitors; i++) {
             sem_wait(&shared_data->visitors_cart_left);
         }
 
+        sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: V %d: leaving complete\n", shared_data->action_counter, cart_id);
+        shared_data->action_counter++;
+        
+        sem_post(&shared_data->writing_sem);
+
     }
+
+    sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: V %d: closed\n", shared_data->action_counter, cart_id);
+        shared_data->action_counter++;
+        
+    sem_post(&shared_data->writing_sem);
+
 
     exit(0);
 }
@@ -296,18 +319,113 @@ void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj
 
     sem_wait(&shared_data->writing_sem);
 
-        fprintf(proj, "%d: V %d: started\n", shared_data->action_counter, visitor_id);
+        fprintf(proj, "%d: N %d: started\n", shared_data->action_counter, visitor_id);
         shared_data->action_counter++;
         
     sem_post(&shared_data->writing_sem);
 
+    // wait untill visitor come to the queue
+    usleep(rand() % (values->queue_arrival + 1));
+
+    sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: N %d: queue\n", shared_data->action_counter, visitor_id);
+        shared_data->action_counter++;
+        
+    sem_post(&shared_data->writing_sem);
+
+    // wait for the cart arrival
+    sem_wait(&shared_data->queue_sem);
+
+    sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: N %d: boarding\n", shared_data->action_counter, visitor_id);
+        shared_data->action_counter++;
+        
+    sem_post(&shared_data->writing_sem);
+
+    // visitor is seated
+    sem_post(&shared_data->filled_cart);
+
+    // wait untill the ride is over
+    sem_wait(&shared_data->visitors_sem);
+
+    sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: N %d: leaving\n", shared_data->action_counter, visitor_id);
+        shared_data->action_counter++;
+        
+    sem_post(&shared_data->writing_sem);
+
+    // visitor is leaving
+    sem_post(&shared_data->visitors_cart_left);
+
+    sem_wait(&shared_data->add_visitor);
+
+    shared_data->visitors_counter++;
+    
+    sem_post(&shared_data->add_visitor);
+
+    exit(0);
 }
 
 
-void park_system(args_inputs *values, logical_system *shared_data){
+void park_system(args_inputs *values, logical_system *shared_data, FILE *proj) {
 
+    int cart_id;
+    int visitor_id;
 
+    pid_t pid = fork();
+    if(pid == 0) {
 
+        dispetcher_system(values, shared_data, proj);
+
+        exit(0);
+    } else if(pid < 0) {
+        fprintf(stderr, "Fork failed \n");
+        exit(1);
+    }
+
+    // generate carts 
+    for(int i = 0; i < values->cart; i++) {
+
+        pid = fork();
+        if(pid == 0) {
+
+            cart_id = i + 1;
+            cart_system(values, shared_data, proj, cart_id);
+        
+            exit(0);
+        } else if(pid < 0) {
+            fprintf(stderr, "Fork failed \n");
+            exit(1);
+        }
+
+    }
+
+    // generate visitors
+    for(int i = 0; i < values->visitors; i++) {
+
+        pid = fork();
+        if(pid == 0) {
+
+            visitor_id = i + 1;
+            visitor_system(values, shared_data, proj, visitor_id);
+
+            exit(0);
+        } else if(pid < 0){
+            fprintf(stderr, "Fork failed \n");
+            exit(1);
+        }
+
+    }
+
+    int all_entities = 1 + values->cart + values->visitors;
+
+    // original entity wait for the copies to finish
+    for(int i = 0; i < all_entities; i++){
+        wait(NULL);
+    }
 
 
 }
@@ -322,6 +440,7 @@ void clean_memory(logical_system *shared_data) {
     sem_destroy(&shared_data->cart_left);
     sem_destroy(&shared_data->filled_cart);
     sem_destroy(&shared_data->visitors_cart_left);
+    sem_destroy(&shared_data->add_visitor);
 
     munmap(shared_data, sizeof(logical_system));
 }
