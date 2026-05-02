@@ -51,6 +51,8 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
 
 void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, int cart_id);
 
+void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj, int visitor_id);
+
 void park_system(args_inputs *values, logical_system *shared_data);
 
 void clean_memory(logical_system *shared_data);
@@ -200,16 +202,12 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
         // call the cart
         sem_post(&shared_data->dispatch_cart);
 
-        // wrong semaphore need to be fixed
-        sem_wait(&shared_data->dispatch_cart);
-
+        // wait untill cart leave
         sem_wait(&shared_data->cart_left);
         
         // stop untill the cart is in the safe distance 
         usleep(values->min_cart_distance * 1000); // in microseconds 
         
-
-        shared_data->visitors_counter++; // raise visitors
     }
 
     sem_wait(&shared_data->writing_sem);
@@ -237,6 +235,10 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
     sem_post(&shared_data->writing_sem);
 
     while(true){
+
+        int remaining_visitors = values->visitors - shared_data->visitors_counter; // visitors in park right now
+        int cart_max_visitors = values->capacity; // changing value localy 
+
         // wait for dispatcher
         sem_wait(&shared_data->dispatch_cart);
 
@@ -245,12 +247,9 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
             break;
         }
         
-        int remaining_visitors = values->visitors - shared_data->visitors_counter; // visitors in park right now
-        int cart_max_visitors = values->capacity; // fixed bug for the last ride of the day
-        
         // for less people then there is capacity
         if(remaining_visitors < cart_max_visitors) {
-            values->capacity = remaining_visitors;
+            cart_max_visitors = remaining_visitors;
         }
 
         // wait untill the cart is filled 
@@ -292,6 +291,18 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
     exit(0);
 }
+
+void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj, int visitor_id) {
+
+    sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: V %d: started\n", shared_data->action_counter, visitor_id);
+        shared_data->action_counter++;
+        
+    sem_post(&shared_data->writing_sem);
+
+}
+
 
 void park_system(args_inputs *values, logical_system *shared_data){
 
