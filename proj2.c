@@ -2,10 +2,11 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-// ---NEED TO ADD NEW SEMAPOHER FOR THE CART LEAVING---
+// ---NEED TO ADD NEW SEMAPOHER FOR THE CART LEAVING--- \\ 
 
 typedef struct {
     int cart, visitors, capacity;
@@ -28,6 +29,9 @@ typedef struct {
     sem_t visitors_sem; // semaphor for people in the cart
     sem_t writing_sem; // semaphor for writing into the file 
     sem_t dispatch_cart; // semaphor for trolley management
+    sem_t cart_left; // semaphor when cart is leaving
+    sem_t filled_cart; // semaphor for waiting for visitors to sit
+    sem_t visitors_cart_left; // semaphor for visitors leaving the cart
 
 } logical_system;
 
@@ -45,7 +49,9 @@ logical_system *system_set_up();
 
 void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *proj);
 
-void open_park(args_inputs *values, logical_system *shared_data);
+void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, int cart_id);
+
+void park_system(args_inputs *values, logical_system *shared_data);
 
 void clean_memory(logical_system *shared_data);
 
@@ -156,7 +162,11 @@ logical_system *system_set_up(){
     sem_init(&shared_data->queue_sem, 1, 0);
     sem_init(&shared_data->visitors_sem, 1, 0);
     sem_init(&shared_data->writing_sem, 1, 1);
-    sem_init(&shared_data->dispatch_trolley, 1, 0);
+    sem_init(&shared_data->dispatch_cart, 1, 0);
+    sem_init(&shared_data->cart_left, 1, 0);
+    sem_init(&shared_data->filled_cart, 1, 0);
+    sem_init(&shared_data->visitors_cart_left, 1, 0);
+
 
     // variables set up
     shared_data->action_counter = 1;
@@ -192,9 +202,11 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
 
         // wrong semaphore need to be fixed
         sem_wait(&shared_data->dispatch_cart);
+
+        sem_wait(&shared_data->cart_left);
         
         // stop untill the cart is in the safe distance 
-        sleep(values->min_cart_distance);
+        usleep(values->min_cart_distance * 1000); // in microseconds 
         
 
         shared_data->visitors_counter++; // raise visitors
@@ -214,7 +226,74 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
 
     exit(0);
 }
-void open_park(args_inputs *values, logical_system *shared_data){
+
+void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, int cart_id)
+{
+    sem_wait(&shared_data->writing_sem);
+
+    fprintf(proj, "%d: V %d: started\n", shared_data->action_counter, cart_id);
+    shared_data->action_counter++;
+
+    sem_post(&shared_data->writing_sem);
+
+    while(true){
+        // wait for dispatcher
+        sem_wait(&shared_data->dispatch_cart);
+
+        // break point
+        if(shared_data->visitors_counter == values->visitors) {
+            break;
+        }
+        
+        int remaining_visitors = values->visitors - shared_data->visitors_counter; // visitors in park right now
+        int cart_max_visitors = values->capacity; // fixed bug for the last ride of the day
+        
+        // for less people then there is capacity
+        if(remaining_visitors < cart_max_visitors) {
+            values->capacity = remaining_visitors;
+        }
+
+        // wait untill the cart is filled 
+        for(int i = 0; i < values->capacity; i++){
+            sem_post(&shared_data->queue_sem);
+            sem_wait(&shared_data->filled_cart);
+        }
+        
+        // anounce dispatcher that the cart left
+        sem_post(&shared_data->cart_left);
+
+        sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: V %d: track\n", shared_data->action_counter, cart_id);
+        shared_data->action_counter++;
+        
+        sem_post(&shared_data->writing_sem);
+        
+        // cart ride simulation
+        usleep(values->cart_travel_time * 1000); // in microseconds
+
+        sem_wait(&shared_data->writing_sem);
+
+        fprintf(proj, "%d: V %d: unboard\n", shared_data->action_counter, cart_id);
+        shared_data->action_counter++;
+        
+        sem_post(&shared_data->writing_sem);
+
+        // unboard all visitors in the cart
+        for(int i = 0; i < cart_max_visitors; i++) {
+            sem_post(&shared_data->visitors_sem);
+        }
+
+        for(int i = 0; i < cart_max_visitors; i++){
+            sem_wait(&shared_data->visitors_cart_left);
+        }
+
+    }
+
+    exit(0);
+}
+
+void park_system(args_inputs *values, logical_system *shared_data){
 
 
 
@@ -228,6 +307,10 @@ void clean_memory(logical_system *shared_data) {
     sem_destroy(&shared_data->queue_sem);
     sem_destroy(&shared_data->visitors_sem);
     sem_destroy(&shared_data->writing_sem);
+    sem_destroy(&shared_data->dispatch_cart);
+    sem_destroy(&shared_data->cart_left);
+    sem_destroy(&shared_data->filled_cart);
+    sem_destroy(&shared_data->visitors_cart_left);
 
     munmap(shared_data, sizeof(logical_system));
 }
