@@ -20,8 +20,7 @@ typedef struct {
     int action_counter; 
     int queue_counter; // counter how many people are in the line
     int capacity_counter; // counter the capacity of each cart
-    int visitors_counter; // counter for how many people will be standing in the line
-
+    
     // semaphors
     sem_t queue_sem; // semaphor for people in queue
     sem_t visitors_sem; // semaphor for people in the cart
@@ -84,6 +83,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // make the code faster
+    setbuf(proj, NULL);
+
+    // start the simulation
+    park_system(&values, shared_data, proj);
+
+    fclose(proj);
     clean_memory(shared_data);
     
     return 0;
@@ -174,7 +180,6 @@ logical_system *system_set_up(){
     shared_data->action_counter = 1;
     shared_data->queue_counter = 0;
     shared_data->capacity_counter = 0;
-    shared_data->visitors_counter = 0;
 
     return shared_data;
 }
@@ -190,7 +195,7 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
     sem_post(&shared_data->writing_sem); // end writing
     
     // doing loop untill no visitors are in the park
-    while(shared_data->visitors_counter != values->visitors) {
+    while(shared_data->queue_counter != values->visitors) {
         
         // doing another action for calling the cart
         sem_wait(&shared_data->writing_sem);
@@ -212,7 +217,7 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
 
     sem_wait(&shared_data->writing_sem);
 
-    fprintf(proj, "%d: D: closing", shared_data->action_counter);
+    fprintf(proj, "%d: D: closing\n", shared_data->action_counter);
     shared_data->action_counter++;
 
     sem_post(&shared_data->writing_sem);
@@ -236,20 +241,27 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
     while(true){
 
-        int remaining_visitors = values->visitors - shared_data->visitors_counter; // visitors in park right now
-        int cart_max_visitors = values->capacity; // changing value localy 
-
         // wait for dispatcher
         sem_wait(&shared_data->dispatch_cart);
 
-        // break point
-        if(shared_data->visitors_counter == values->visitors) {
-            break;
-        }
+        sem_wait(&shared_data->add_visitor);
+
+        int remaining_visitors = values->visitors - shared_data->queue_counter; // visitors in park right now
+        int cart_max_visitors = values->capacity; // changing value localy 
+
         
         // for less people then there is capacity
         if(remaining_visitors < cart_max_visitors) {
             cart_max_visitors = remaining_visitors;
+        }
+
+        // claim the visitors
+        shared_data->queue_counter += cart_max_visitors;
+
+        sem_post(&shared_data->add_visitor);
+
+        if(cart_max_visitors == 0) {
+            break;
         }
 
         sem_wait(&shared_data->writing_sem);
@@ -361,8 +373,6 @@ void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj
     sem_post(&shared_data->visitors_cart_left);
 
     sem_wait(&shared_data->add_visitor);
-
-    shared_data->visitors_counter++;
     
     sem_post(&shared_data->add_visitor);
 
