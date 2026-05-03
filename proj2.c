@@ -18,20 +18,30 @@ typedef struct {
 }   args_inputs;
 
 typedef struct {
+    
+    int active_cart; // shows witch cart is currently active
+
     // counters
     int action_counter; 
     int queue_counter; // counter how many people are in the line
     int capacity_counter; // counter the capacity of each cart
+    int ticket_counter; // counter ticket for each cart
     
     // semaphors
     sem_t queue_sem; // semaphor for people in queue
-    sem_t visitors_sem; // semaphor for people in the cart
-    sem_t writing_sem; // semaphor for writing into the file 
     sem_t dispatch_cart; // semaphor for trolley management
     sem_t cart_left; // semaphor when cart is leaving
     sem_t filled_cart; // semaphor for waiting for visitors to sit
-    sem_t visitors_cart_left; // semaphor for visitors leaving the cart
+    
+    // mutex semaphors
+    sem_t writing_sem; // semaphor for writing into the file only one system at time
     sem_t add_visitor; // semaphor to counter only one visitor at time 
+    sem_t ticket_wait; // semaphor that makes cart take one cart ticket at time
+
+    // array semaphor
+    sem_t visitors_cart_left[10]; // semaphor for visitors leaving the cart
+    sem_t visitors_sem[10]; // semaphor for people in the cart
+    sem_t cart_ticket[10]; // semaphor that organize the cart so they dont overtake each other
 
 } logical_system;
 
@@ -192,20 +202,30 @@ logical_system *system_set_up(){
     }
     // semaphor set up
     sem_init(&shared_data->queue_sem, 1, 0);
-    sem_init(&shared_data->visitors_sem, 1, 0);
     sem_init(&shared_data->dispatch_cart, 1, 0);
     sem_init(&shared_data->cart_left, 1, 0);
     sem_init(&shared_data->filled_cart, 1, 0);
-    sem_init(&shared_data->visitors_cart_left, 1, 0);
 
     // mutex semaphor set up
     sem_init(&shared_data->writing_sem, 1, 1);
     sem_init(&shared_data->add_visitor, 1, 1);
+    sem_init(&shared_data->ticket_wait, 1, 1);
+
+    // array semaphor set up
+    
+    sem_init(&shared_data->cart_ticket[0], 1, 1); // to dont freeze the fisrt cart on the spot
+
+    for(int i = 0; i < 10; i++) {
+        sem_init(&shared_data->visitors_sem[i], 1, 0);
+        sem_init(&shared_data->visitors_cart_left[i], 1, 0);
+        sem_init(&shared_data->cart_ticket[i+1], 1, 0);
+    }
 
     // variables set up
     shared_data->action_counter = 1;
     shared_data->queue_counter = 0;
     shared_data->capacity_counter = 0;
+    shared_data->ticket_counter = 0;
 
     return shared_data;
 }
@@ -256,8 +276,7 @@ void dispetcher_system(args_inputs *values, logical_system *shared_data, FILE *p
     exit(0);
 }
 
-void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, int cart_id)
-{
+void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, int cart_id) {
     sem_wait(&shared_data->writing_sem);
 
     fprintf(proj, "%d: V %d: started\n", shared_data->action_counter, cart_id);
@@ -289,6 +308,9 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
         if(cart_max_visitors == 0) {
             break;
         }
+        
+
+        shared_data->active_cart= cart_id;
 
         sem_wait(&shared_data->writing_sem);
 
@@ -314,8 +336,18 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
         
         sem_post(&shared_data->writing_sem);
         
+        sem_wait(&shared_data->ticket_wait);
+        // variable to store ticket that is being used right now
+        int curr_ticket = shared_data->ticket_counter % 10;
+        shared_data->ticket_counter++;
+        
+        sem_post(&shared_data->ticket_wait);
+
         // cart ride simulation
         usleep(values->cart_travel_time * 1000); // in microseconds
+
+        // wait untill ticket is called
+        sem_wait(&shared_data->cart_ticket[curr_ticket]);
 
         sem_wait(&shared_data->writing_sem);
 
@@ -326,8 +358,8 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
 
         // unboard all visitors in the cart
         for(int i = 0; i < cart_max_visitors; i++) {
-            sem_post(&shared_data->visitors_sem);
-            sem_wait(&shared_data->visitors_cart_left);
+            sem_post(&shared_data->visitors_sem[cart_id]);
+            sem_wait(&shared_data->visitors_cart_left[cart_id]);
         }
 
         sem_wait(&shared_data->writing_sem);
@@ -336,6 +368,9 @@ void cart_system(args_inputs *values, logical_system *shared_data, FILE *proj, i
         shared_data->action_counter++;
         
         sem_post(&shared_data->writing_sem);
+
+        // call another cart with ticket
+        sem_post(&shared_data->cart_ticket[(curr_ticket + 1) % 10]);
 
     }
 
@@ -372,6 +407,8 @@ void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj
     // wait for the cart arrival
     sem_wait(&shared_data->queue_sem);
 
+    int last_boarded_cart = shared_data->active_cart;
+
     sem_wait(&shared_data->writing_sem);
 
         fprintf(proj, "%d: N %d: boarding\n", shared_data->action_counter, visitor_id);
@@ -383,7 +420,7 @@ void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj
     sem_post(&shared_data->filled_cart);
 
     // wait untill the ride is over
-    sem_wait(&shared_data->visitors_sem);
+    sem_wait(&shared_data->visitors_sem[last_boarded_cart]);
 
     sem_wait(&shared_data->writing_sem);
 
@@ -393,7 +430,7 @@ void visitor_system(args_inputs *values, logical_system *shared_data, FILE *proj
     sem_post(&shared_data->writing_sem);
 
     // visitor is leaving
-    sem_post(&shared_data->visitors_cart_left);
+    sem_post(&shared_data->visitors_cart_left[last_boarded_cart]);
 
     sem_wait(&shared_data->add_visitor);
     
@@ -472,14 +509,23 @@ void park_system(args_inputs *values, logical_system *shared_data, FILE *proj) {
 
 void clean_memory(logical_system *shared_data) {
     
+    // destroy semaphors
     sem_destroy(&shared_data->queue_sem);
-    sem_destroy(&shared_data->visitors_sem);
-    sem_destroy(&shared_data->writing_sem);
     sem_destroy(&shared_data->dispatch_cart);
     sem_destroy(&shared_data->cart_left);
     sem_destroy(&shared_data->filled_cart);
-    sem_destroy(&shared_data->visitors_cart_left);
+
+    // destroy mutex semaphors
+    sem_destroy(&shared_data->writing_sem);
     sem_destroy(&shared_data->add_visitor);
+    sem_destroy(&shared_data->ticket_wait);
+    
+    // destroy array semaphors
+    for(int i = 0; i < 10; i++) {
+        sem_destroy(&shared_data->visitors_cart_left[i]);
+        sem_destroy(&shared_data->visitors_sem[i]);
+        sem_destroy(&shared_data->cart_ticket[i]);
+    }
 
     munmap(shared_data, sizeof(logical_system));
 }
