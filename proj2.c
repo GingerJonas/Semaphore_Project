@@ -1,8 +1,10 @@
+// Jonáš Vávra x273960
 #include <stdio.h>
-#include <unistd.h>
-#include <semaphore.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <unistd.h>
 #include <stdbool.h>
+#include <semaphore.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
@@ -32,6 +34,9 @@ typedef struct {
     sem_t add_visitor; // semaphor to counter only one visitor at time 
 
 } logical_system;
+
+// checks if the args are numbers
+int args_controller(char *argv);
 
 // assigns arguments to variables
 int values_set_up(args_inputs *values, char **argv);
@@ -80,6 +85,7 @@ int main(int argc, char **argv) {
     FILE *proj;
     proj = fopen("proj2.out", "w"); // open file for writing output
     if(proj == NULL) {
+        clean_memory(shared_data);
         return 1;
     }
 
@@ -95,7 +101,27 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+int args_controller(char *argv) {
+    if(argv[0] == '\0') { 
+        return false;
+    }
+
+    for(int i = 0; argv[i] != '\0'; i++) {
+        if(!isdigit(argv[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int values_set_up(args_inputs *values, char **argv) {
+
+    for (int i = 1; i <= 6; i++) {
+        if(args_controller(argv[i]) == 1) {
+            fprintf(stderr, "Wrong starting values");
+            return 1;
+        }
+    }
 
     values->cart = atoi(argv[1]);
     values->visitors = atoi(argv[2]);
@@ -390,6 +416,8 @@ void park_system(args_inputs *values, logical_system *shared_data, FILE *proj) {
         exit(0);
     } else if(pid < 0) {
         fprintf(stderr, "Fork failed \n");
+         fclose(proj);
+        clean_memory(shared_data);
         exit(1);
     }
 
@@ -405,6 +433,8 @@ void park_system(args_inputs *values, logical_system *shared_data, FILE *proj) {
             exit(0);
         } else if(pid < 0) {
             fprintf(stderr, "Fork failed \n");
+            fclose(proj);
+            clean_memory(shared_data);
             exit(1);
         }
 
@@ -422,6 +452,8 @@ void park_system(args_inputs *values, logical_system *shared_data, FILE *proj) {
             exit(0);
         } else if(pid < 0){
             fprintf(stderr, "Fork failed \n");
+            fclose(proj);
+            clean_memory(shared_data);
             exit(1);
         }
 
